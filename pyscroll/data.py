@@ -16,6 +16,10 @@ class TiledMapData(object):
         self.tmx = tmx
 
     @property
+    def orientation(self):
+        return self.tmx.orientation
+
+    @property
     def tilewidth(self):
         return self.tmx.tilewidth
 

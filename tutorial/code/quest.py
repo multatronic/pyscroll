@@ -89,6 +89,7 @@ class Hero(pygame.sprite.Sprite):
         self.rect.topleft = self._position
         self.feet.midbottom = self.rect.midbottom
 
+
 class QuestGame(object):
     """ This class is a basic game.
 
@@ -120,7 +121,7 @@ class QuestGame(object):
 
         # create new renderer (camera)
         # clamp_camera is used to prevent the map from scrolling past the edge
-        self.map_layer = pyscroll.BufferedRenderer(map_data,
+        self.map_layer = pyscroll.OrthogonalRenderer(map_data,
                                                    (w / 2, h / 2),
                                                    clamp_camera=True)
 

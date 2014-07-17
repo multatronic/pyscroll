@@ -1,3 +1,22 @@
+ISOMETRIC
+=========
+
+Experimental Isometric Support!
+
+Issues:
+  No 'fast layering'
+  No PyscrollGroup (might work with issues)
+  Probably has depth sorting issues
+  Must use tilesets with alpha channel
+  No colorkey rendering
+  Shapes will not draw correctly
+  Might break python 3 compatibility (untested yet)
+
+Please send me your isometric maps if there are problems.  I'll test them
+and make fixes.  I don't use isometric maps, so I don't have a good test
+set.  By sending me your maps, I will have more chances to fix bugs.  Thanks!
+
+
 pyscroll
 ========
 

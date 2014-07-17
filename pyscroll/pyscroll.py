@@ -7,7 +7,7 @@ from six.moves import queue, range
 from . import quadtree
 
 
-class BufferedRenderer(object):
+class RendererBase(object):
     """ Renderer that can be updated incrementally
 
     Base class to render a map onto a buffer that is suitable for blitting onto
@@ -52,6 +52,7 @@ class BufferedRenderer(object):
         self.view = None
         self.half_width = None
         self.half_height = None
+        self.iso_double_height = False
 
         self.lock = threading.Lock()
         self.set_data(data)
@@ -67,37 +68,34 @@ class BufferedRenderer(object):
         """
         tw = self.data.tilewidth
         th = self.data.tileheight
-
         buffer_width = size[0] + tw * self.padding
         buffer_height = size[1] + th * self.padding
         self.buffer = pygame.Surface((buffer_width, buffer_height))
-
-        self.view = pygame.Rect(0, 0,
-                                math.ceil(buffer_width / tw),
+        self.view = pygame.Rect(0, 0, math.ceil(buffer_width / tw),
                                 math.ceil(buffer_height / th))
 
-        if self.colorkey:
-            self.buffer.set_colorkey(self.colorkey)
-            self.buffer.fill(self.colorkey)
-
         # this is the pixel size of the entire map
-        self.rect = pygame.Rect(0, 0,
-                                self.data.width * tw,
+        self.rect = pygame.Rect(0, 0, self.data.width * tw,
                                 self.data.height * th)
 
         self.half_width = size[0] / 2
         self.half_height = size[1] / 2
 
-        # quadtree is used to correctly draw tiles that cover 'sprites'
-        def make_rect(x, y):
-            return pygame.Rect((x * tw, y * th), (tw, th))
+        if self.data.orientation == 'orthogonal':
+            # quadtree is used to correctly draw tiles that cover 'sprites'
+            def make_rect(x, y):
+                return pygame.Rect((x * tw, y * th), (tw, th))
 
-        rects = [make_rect(x, y)
-                 for x, y in product(range(self.view.width),
-                                     range(self.view.height))]
+            rects = [make_rect(x, y)
+                     for x, y in product(range(self.view.width),
+                                         range(self.view.height))]
 
-        # TODO: figure out what depth -actually- does
-        self.layer_quadtree = quadtree.FastQuadTree(rects, 1)
+            # TODO: figure out what depth -actually- does
+            self.layer_quadtree = quadtree.FastQuadTree(rects, 1)
+
+        if self.colorkey:
+            self.buffer.set_colorkey(self.colorkey)
+            self.buffer.fill(self.colorkey)
 
         self.size = size
         self.idle = False
@@ -106,11 +104,6 @@ class BufferedRenderer(object):
         self.yoffset = 0
         self.old_x = 0
         self.old_y = 0
-
-    def generate_default_image(self):
-        self.default_image = pygame.Surface((self.data.tilewidth,
-                                             self.data.tileheight))
-        self.default_image.fill((0, 0, 0))
 
     def get_tile_image(self, position):
         try:
@@ -127,6 +120,9 @@ class BufferedRenderer(object):
         """ center the map on a pixel
         """
         x, y = [round(i, 0) for i in coords]
+        hpad = int(self.padding / 2)
+        tw = self.data.tilewidth
+        th = self.data.tileheight
 
         if self.clamp_camera:
             if x < self.half_width:
@@ -142,12 +138,9 @@ class BufferedRenderer(object):
             self.idle = True
             return
 
-        hpad = int(self.padding / 2)
-        tw = self.data.tilewidth
-        th = self.data.tileheight
         self.idle = False
 
-        # calc the new postion in tiles and offset
+        # calc the new position in tiles and offset
         left, self.xoffset = divmod(x - self.half_width, tw)
         top, self.yoffset = divmod(y - self.half_height, th)
 
@@ -155,11 +148,11 @@ class BufferedRenderer(object):
         dx = int(left - hpad - self.view.left)
         dy = int(top - hpad - self.view.top)
 
-        # adjust the offsets of the buffer is placed correctly
+        # adjust the offsets of the buffer
         self.xoffset += hpad * tw
         self.yoffset += hpad * th
 
-        # adjust the view if the view has changed
+        # adjust the view if the buffer is scrolled too far
         if (abs(dx) >= 1) or (abs(dy) >= 1):
             self.flush()
             self.view = self.view.move((dx, dy))
@@ -228,70 +221,8 @@ class BufferedRenderer(object):
         """
         self.blit_tiles(islice(self.queue, self.update_rate))
 
-    def draw(self, surface, rect, surfaces=None):
-        """ Draw the map onto a surface
-
-        pass a rect that defines the draw area for:
-            dirty screen update support
-            drawing to an area smaller that the whole window/screen
-
-        surfaces may optionally be passed that will be blited onto the surface.
-        this must be a list of tuples containing a layer number, image, and
-        rect in screen coordinates.  surfaces will be drawn in order passed,
-        and will be correctly drawn with tiles from a higher layer overlapping
-        the surface.
-        """
-        if self.blank:
-            self.blank = False
-            self.redraw()
-
-        surblit = surface.blit
-        left, top = self.view.topleft
-        ox, oy = self.xoffset, self.yoffset
-        ox -= rect.left
-        oy -= rect.top
-
-        if self.flush_on_draw:
-            self.flush()
-
-        # need to set clipping otherwise the map will draw outside its area
-        original_clip = None
-        if self.clipping:
-            original_clip = surface.get_clip()
-            surface.set_clip(rect)
-
-        # draw the entire map to the surface,
-        # taking in account the scrolling offset
-        surblit(self.buffer, (-ox, -oy))
-
-        if surfaces is None:
-            dirty = list()
-
-        else:
-            def above(x, y):
-                return x > y
-
-            hit = self.layer_quadtree.hit
-            get_tile = self.get_tile_image
-            tile_layers = tuple(self.data.visible_tile_layers)
-            dirty = [(surblit(i[0], i[1]), i[2]) for i in surfaces]
-
-            for dirty_rect, layer in dirty:
-                for r in hit(dirty_rect.move(ox, oy)):
-                    x, y, tw, th = r
-                    for l in [i for i in tile_layers if above(i, layer)]:
-                        tile = get_tile((int(x / tw + left),
-                                         int(y / th + top), int(l)))
-                        if tile:
-                            surblit(tile, (x - ox, y - oy))
-
-        if self.clipping:
-            surface.set_clip(original_clip)
-
-        if self.idle:
-            return [i[0] for i in dirty]
-        else:
-            return [rect]
+    def draw(self, surface, rect, surfaces):
+        raise NotImplementedError
 
     def flush(self):
         """ Blit the tiles and block until the tile queue is empty
@@ -368,6 +299,93 @@ class BufferedRenderer(object):
                         draw_poly(color, points)
 
     def blit_tiles(self, iterator):
+        raise NotImplementedError
+
+    def redraw(self):
+        """ redraw the visible portion of the buffer -- it is slow.
+        """
+        queue = product(range(self.view.left, self.view.right),
+                        range(self.view.top, self.view.bottom),
+                        self.data.visible_tile_layers)
+
+        self.update_queue(queue)
+        self.flush()
+
+
+class BufferedRenderer(RendererBase):
+    """ TEST ORTHOGRAPHIC
+    """
+    def generate_default_image(self):
+        self.default_image = pygame.Surface((self.data.tilewidth,
+                                             self.data.tileheight))
+        self.default_image.fill((0, 0, 0))
+
+    def draw(self, surface, rect, surfaces=None):
+        """ Draw the map onto a surface
+
+        pass a rect that defines the draw area for:
+            dirty screen update support
+            drawing to an area smaller that the whole window/screen
+
+        surfaces may optionally be passed that will be blited onto the surface.
+        this must be a list of tuples containing a layer number, image, and
+        rect in screen coordinates.  surfaces will be drawn in order passed,
+        and will be correctly drawn with tiles from a higher layer overlapping
+        the surface.
+        """
+        if self.blank:
+            self.blank = False
+            self.redraw()
+
+        surblit = surface.blit
+        left, top = self.view.topleft
+        ox, oy = self.xoffset, self.yoffset
+        ox -= rect.left
+        oy -= rect.top
+
+        if self.flush_on_draw:
+            self.flush()
+
+        # need to set clipping otherwise the map will draw outside its area
+        original_clip = None
+        if self.clipping:
+            original_clip = surface.get_clip()
+            surface.set_clip(rect)
+
+        # draw the entire map to the surface,
+        # taking in account the scrolling offset
+        surblit(self.buffer, (-ox, -oy))
+
+        if surfaces is None:
+            dirty = list()
+
+        else:
+            def above(x, y):
+                return x > y
+
+            hit = self.layer_quadtree.hit
+            get_tile = self.get_tile_image
+            tile_layers = tuple(self.data.visible_tile_layers)
+            dirty = [(surblit(i[0], i[1]), i[2]) for i in surfaces]
+
+            for dirty_rect, layer in dirty:
+                for r in hit(dirty_rect.move(ox, oy)):
+                    x, y, tw, th = r
+                    for l in [i for i in tile_layers if above(i, layer)]:
+                        tile = get_tile((int(x / tw + left),
+                                         int(y / th + top), int(l)))
+                        if tile:
+                            surblit(tile, (x - ox, y - oy))
+
+        if self.clipping:
+            surface.set_clip(original_clip)
+
+        if self.idle:
+            return [i[0] for i in dirty]
+        else:
+            return [rect]
+
+    def blit_tiles(self, iterator):
         """ Bilts (x, y, layer) tuples to buffer from iterator
         """
         tw = self.data.tilewidth
@@ -399,92 +417,203 @@ class BufferedRenderer(object):
                 if tile:
                     blit(tile, (x * tw - ltw, y * th - tth))
 
+
+class BufferedRenderer(RendererBase):
+    """ TEST ISOMETRIC
+
+    here be dragons.  lots of odd, untested, and unoptimised stuff.
+
+    - coalescing of surfaces is not supported
+    - drawing may have depth sorting issues
+    - will be slower than orthographic maps for window of same size
+    - consumes more memory than orthographic maps for same window size
+    """
+    def __init__(self, *args, **kwargs):
+        super(BufferedRenderer, self).__init__(*args, **kwargs)
+        if self.data.tileheight == self.data.tilewidth / 2:
+            self.iso_double_height = True
+        self.view = pygame.Rect(0, 0, 25, 25)
+
+    def set_size(self, size):
+        """ Set the size of the map in pixels
+        """
+        tw = self.data.tilewidth
+        th = self.data.tileheight / 2
+
+        buffer_width = size[0] + tw * self.padding
+        buffer_height = size[1] + th * self.padding
+        self.buffer = pygame.Surface((buffer_width, buffer_height))
+        self.view = pygame.Rect(0, 0, math.ceil(buffer_width / tw),
+                                      math.ceil(buffer_height / th))
+
+        # this is the pixel size of the entire map
+        self.rect = pygame.Rect(0, 0, self.data.width * tw,
+                                      self.data.height * th)
+
+        self.half_width = size[0] / 2
+        self.half_height = size[1] / 2
+
+        if self.colorkey:
+            self.buffer.set_colorkey(self.colorkey)
+            self.buffer.fill(self.colorkey)
+
+        self.size = size
+        self.idle = False
+        self.blank = True
+        self.xoffset = 0
+        self.yoffset = 0
+        self.old_x = 0
+        self.old_y = 0
+
+    def generate_default_image(self):
+        self.default_image = pygame.Surface((self.data.tilewidth,
+                                             self.data.tileheight))
+        self.default_image.fill((0, 0, 0))
+
+    def draw(self, surface, rect, surfaces=None):
+        """ Draw the map onto a surface
+
+        pass a rect that defines the draw area for:
+            dirty screen update support
+            drawing to an area smaller that the whole window/screen
+
+        surfaces may optionally be passed that will be blited onto the surface.
+        this must be a list of tuples containing a layer number, image, and
+        rect in screen coordinates.  surfaces will be drawn in order passed,
+        and will be correctly drawn with tiles from a higher layer overlapping
+        the surface.
+        """
+        if self.blank:
+            self.blank = False
+            self.redraw()
+
+        surblit = surface.blit
+        left, top = self.view.topleft
+        ox, oy = self.xoffset, self.yoffset
+        ox -= rect.left
+        oy -= rect.top
+
+        w, h = self.buffer.get_size()
+        ox -= rect.width / 2 - w / 2
+        oy -= rect.height / 2 - h / 2
+
+        if self.flush_on_draw:
+            self.flush()
+
+        # need to set clipping otherwise the map will draw outside its area
+        original_clip = None
+        if self.clipping:
+            original_clip = surface.get_clip()
+            surface.set_clip(rect)
+
+        # draw the entire map to the surface,
+        # taking in account the scrolling offset
+        surblit(self.buffer, (-ox, -oy))
+
+        dirty = list()
+
+        if self.clipping:
+            surface.set_clip(original_clip)
+
+        if self.idle:
+            return [i[0] for i in dirty]
+        else:
+            return [rect]
+
+    def blit_tiles(self, iterator):
+        """ Bilts (x, y, layer) tuples to buffer from iterator
+        """
+        tw = self.data.tilewidth
+        th = self.data.tileheight
+        blit = self.buffer.blit
+        get_tile = self.get_tile_image
+
+        bw, bh = self.buffer.get_size()
+        bw /= 2
+        bh /= 2
+
+        thh = th / 2
+        thw = tw / 2
+
+        ltw = self.view.left * tw
+        tth = self.view.top * th
+        dxx = ltw - tth
+        dyy = (ltw + tth) / 2
+
+        for y, x in iterator:
+            # unproject the screen coordinate to a map coordinate
+            xx = (x * tw)
+            yy = y * th / 2
+
+            # yep
+            color = (255, 0, 0)
+            if y % 2:
+                xx += thw
+                color = (0, 255, 0)
+
+            yyth = float(yy) / th
+            xxtw = float(xx) / tw
+            tx = int(yyth + xxtw)
+            ty = int(yyth - xxtw)
+
+            # get the tile that is under the point in the buffer
+            tile = get_tile((tx, ty, 0))
+
+            print x, y, xx, yy, tx, ty
+
+            xxx = xx
+            yyy = yy
+
+            if tile:
+                blit(tile, (xxx, yyy))
+
+            pygame.draw.circle(self.buffer, color, (xxx, yyy), 2)
+
+    def center(self, coords):
+        """ center the map on a "map pixel"
+        """
+        x, y = [round(i, 0) for i in coords]
+        hpad = int(self.padding / 2)
+        tw = self.data.tilewidth
+        th = self.data.tileheight
+
+        # a hack?  i don't know.
+        if self.iso_double_height:
+            tw /= 2
+
+        # calc the new offset
+        ox = (x % tw)
+        oy = (y % th)
+        self.xoffset = ox - oy
+        self.yoffset = (ox + oy) / 2
+
+        # calc new view
+        left = int(x / tw)
+        top = int(y / th)
+
+        # determine if tiles should be redrawn
+        dx = int(left - hpad - self.view.left)
+        dy = int(top - hpad - self.view.top)
+
+        # adjust the offsets of the buffer
+        self.xoffset += hpad * tw
+        self.yoffset += hpad * th
+
+        # adjust the view if the buffer is scrolled too far
+        if (abs(dx) >= 1) or (abs(dy) >= 1):
+            self.view = self.view.move((dx, dy))
+
+            # cannot reliably use the scroll trick, so map must be redrawn
+            # this is because new tiles might need to be drawn 'under' old
+            # tiles, causing a many tiles that need to be redrawn
+            # this just resets the drawing queue to redraw the map
+            self.buffer.fill((64, 64, 64))
+            self.redraw()
+
+        self.old_x, self.old_y = x, y
+
     def redraw(self):
         """ redraw the visible portion of the buffer -- it is slow.
         """
-        queue = product(range(self.view.left, self.view.right),
-                        range(self.view.top, self.view.bottom),
-                        self.data.visible_tile_layers)
-
-        self.update_queue(queue)
+        self.queue = product(range(self.view.height * 2), range(self.view.width))
         self.flush()
-
-
-class ThreadedRenderer(BufferedRenderer):
-    """ Off-screen tiling is handled in a thread
-    """
-
-    def __init__(self, *args, **kwargs):
-        BufferedRenderer.__init__(self, *args, **kwargs)
-        self.flush_on_draw = False
-        self.queue = queue.Queue()
-
-        self.thread = TileThread(renderer=self)
-        self.thread.start()
-
-    def update(self, dt=None):
-        pass
-
-    def flush(self):
-        self.queue.join()
-
-    def update_queue(self, iterator):
-        for i in iterator:
-            self.queue.put(i)
-
-
-class TileThread(threading.Thread):
-    """ poll the tile queue for new tiles and draw them to the buffer
-    """
-
-    def __init__(self, *args, **kwargs):
-        threading.Thread.__init__(self)
-        self.renderer = kwargs.get('renderer')
-        self.daemon = True
-
-    def run(self):
-        r = self.renderer
-
-        tw = r.data.tilewidth
-        th = r.data.tileheight
-        get_tile = r.get_tile_image
-        colorkey = r.colorkey
-        tile_queue = r.queue
-        lock = r.lock
-        old_tiles = set()
-        old_view = None
-
-        running = 1
-
-        while running:
-            x, y, l = tile_queue.get()
-
-            # pyscroll may change these references to another object
-            # so, while we are defrencing them, we need to create new
-            # references if they change.
-            if old_view is not r.view:
-                fill = r.buffer.fill
-                blit = r.buffer.blit
-                ltw = r.view.left * tw
-                tth = r.view.top * th
-                old_tiles = set()
-
-            if colorkey:
-                tile = get_tile((x, y, l))
-                if tile:
-                    with lock:
-                        if l == 0:
-                            fill(colorkey, (x * tw - ltw, y * th - tth, tw, th))
-                        old_tiles.add((x, y, l))
-                        blit(tile, (x * tw - ltw, y * th - tth))
-                else:
-                    if (x, y, l - 1) not in old_tiles:
-                        with lock:
-                            fill(colorkey, (x * tw - ltw, y * th - tth, tw, th))
-            else:
-                tile = get_tile((x, y, l))
-                if tile:
-                    with lock:
-                        blit(tile, (x * tw - ltw, y * th - tth))
-
-            tile_queue.task_done()

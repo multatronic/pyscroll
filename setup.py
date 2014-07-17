@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-#encoding: utf-8
+# encoding: utf-8
 
 from setuptools import setup
 
 setup(name='pyscroll',
-      version='2.14.2',
+      version='2.15.0',
       description='Scrolling library for pygame and python 2.7 & 3.3',
       author='bitcraft',
       author_email='leif.theden@gmail.com',

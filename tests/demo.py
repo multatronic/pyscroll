@@ -49,13 +49,10 @@ class ScrollTest:
         map_data = pyscroll.data.TiledMapData(tmx_data)
 
         # create new renderer
-        # pyscroll has two renderers: BufferedRenderer
-        #                             ThreadedRenderer
-        # the threaded renderer is an experimental feature
-        # seems to be picky of OS and python versions
-
         #self.map_layer = pyscroll.ThreadedRenderer(map_data, screen.get_size())
-        self.map_layer = pyscroll.BufferedRenderer(map_data, screen.get_size())
+        #self.map_layer = pyscroll.BufferedRenderer(map_data, screen.get_size())
+        self.map_layer = pyscroll.BufferedRenderer(map_data, (500, 500),
+                                                   padding=0)
 
         # create a font and pre-render some text to be displayed over the map
         f = pygame.font.Font(pygame.font.get_default_font(), 20)
@@ -68,6 +65,8 @@ class ScrollTest:
         # set our initial viewpoint in the center of the map
         self.center = [self.map_layer.rect.width / 2,
                        self.map_layer.rect.height / 2]
+
+        self.center = [0, 0]
 
         # the camera vector is used to handle camera movement
         self.camera_acc = [0, 0, 0]
@@ -108,7 +107,8 @@ class ScrollTest:
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
                 init_screen(event.w, event.h)
-                self.map_layer.set_size((event.w, event.h))
+                #self.map_layer.set_size((event.w, event.h))
+
 
         # these keys will change the camera vector
         # the camera vector changes the center of the viewport,
