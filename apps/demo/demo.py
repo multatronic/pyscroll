@@ -80,6 +80,8 @@ class ScrollTest:
 
         # tell the map_layer (BufferedRenderer) to draw to the surface
         # the draw function requires a rect to draw to.
+
+        surface.fill((0, 0, 0))
         self.map_layer.draw(surface, surface.get_rect())
 
         # blit our text over the map

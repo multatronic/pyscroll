@@ -12,18 +12,20 @@ import pytmx
 import pygame
 import pyscroll
 import pyscroll.data
-from pyscroll.util import PyscrollGroup
+from pyscroll.group import ScrollGroup
+from pyscroll.tiled import TiledMapData
 from pygame.locals import *
 
 
 # define configuration variables here
 RESOURCES_DIR = 'data'
 
-HERO_MOVE_SPEED = 200            # pixels per second
+HERO_MOVE_SPEED = 200  # pixels per second
 MAP_FILENAME = 'grasslands.tmx'
 
 # used for 2x scaling
 temp_surface = None
+
 
 # simple wrapper to keep the screen resizeable
 def init_screen(width, height):
@@ -31,6 +33,7 @@ def init_screen(width, height):
     screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
     temp_surface = pygame.Surface((width / 2, height / 2)).convert()
     return screen
+
 
 # make loading maps a little easier
 def get_map(filename):
@@ -58,6 +61,7 @@ class Hero(pygame.sprite.Sprite):
     There is also an old_rect that is used to reposition the sprite if it
     collides with level walls.
     """
+
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.image = load_image('hero.png').convert_alpha()
@@ -115,27 +119,25 @@ class QuestGame(object):
                 object.width, object.height))
 
         # create new data source for pyscroll
-        map_data = pyscroll.data.TiledMapData(tmx_data)
+        map_data = TiledMapData(tmx_data)
 
         w, h = screen.get_size()
 
         # create new renderer (camera)
         # clamp_camera is used to prevent the map from scrolling past the edge
         self.map_layer = pyscroll.OrthogonalRenderer(map_data,
-                                                   (w / 2, h / 2),
-                                                   clamp_camera=True)
+                                                     (w / 2, h / 2),
+                                                     clamp_camera=True)
 
         # pyscroll supports layered rendering.  our map has 3 'under' layers
         # layers begin with 0, so the layers are 0, 1, and 2.
         # since we want the sprite to be on top of layer 1, we set the default
         # layer for sprites as 1
-        self.group = PyscrollGroup(map_layer=self.map_layer,
-                                   default_layer=2)
-
+        self.group = ScrollGroup(map_layer=self.map_layer, default_layer=2)
         self.hero = Hero()
 
         # put the hero in the center of the map
-        self.hero.position = self.map_layer.rect.center
+        self.hero.position = self.map_layer.map_rect.center
 
         # add our hero to the group
         self.group.add(self.hero)
@@ -165,7 +167,7 @@ class QuestGame(object):
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
                 init_screen(event.w, event.h)
-                self.map_layer.set_size((event.w / 2, event.h / 2))
+                self.map_layer.size = (event.w / 2, event.h / 2)
 
             event = pygame.event.poll()
 

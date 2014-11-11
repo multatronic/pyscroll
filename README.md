@@ -1,22 +1,3 @@
-ISOMETRIC
-=========
-
-Experimental Isometric Support!
-
-Issues:
-  No 'fast layering'
-  No PyscrollGroup (might work with issues)
-  Probably has depth sorting issues
-  Must use tilesets with alpha channel
-  No colorkey rendering
-  Shapes will not draw correctly
-  Might break python 3 compatibility (untested yet)
-
-Please send me your isometric maps if there are problems.  I'll test them
-and make fixes.  I don't use isometric maps, so I don't have a good test
-set.  By sending me your maps, I will have more chances to fix bugs.  Thanks!
-
-
 pyscroll
 ========
 
@@ -29,16 +10,16 @@ Introduction
 ============
 
 pyscroll is a generic module for making a fast scrolling image with PyGame.  It
-uses a lot of magic to get reasonable framerates out of PyGame.  It only exists
+uses a lot of magic to get reasonable framerates out of PyGame and only exists
 to draw a map.  It doesn't load images or data, so you can use your own custom
 data structures, tile storage, ect.
 
-The included class, BufferedRenderer, gives great framerates, supports layered
-rendering and can draw itself.  It uses more memory than a typical map would,
-but gives much better performance.
+The included class, OrthographicRenderer, gives great framerates, supports
+layered rendering and can draw itself.  It uses more memory than a typical map
+would, but gives much better performance.
 
 pyscroll is compatible with pytmx (https://github.com/bitcraft/pytmx), so you
-can use your Tiled maps.  It also has out-of-the-box support for PyGame Sprites.
+can use your Tiled maps and has out-of-the-box support for PyGame Sprites.
 
 
 Documentation
@@ -61,7 +42,7 @@ Shape Drawing
 =============
 
 pyscroll has a new experimental feature for drawing shapes to the map and
-scrolling them as part of the map.  This can be useful for game that need to
+scrolling them as part of the map.  This can be useful for game that needs to
 draw arbitrary shaped objects.
 
 The feature requires pytmx, and that the map files be created in the Tiled Map
