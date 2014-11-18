@@ -1,3 +1,6 @@
+__all__ = ['AbstractMapData']
+
+
 class AbstractMapData(object):
     """Abstract class for use as data for Pyscroll scrolling maps
     """
@@ -7,11 +10,11 @@ class AbstractMapData(object):
         raise NotImplementedError
 
     @property
-    def tilewidth(self):
+    def tile_width(self):
         raise NotImplementedError
 
     @property
-    def tileheight(self):
+    def tile_height(self):
         raise NotImplementedError
 
     @property
@@ -37,5 +40,5 @@ class AbstractMapData(object):
     def get_tile_image(self, position):
         raise NotImplementedError
 
-    def get_tile_image_by_gid(self, gid):
+    def get_tile_image_by_id(self, id):
         raise NotImplementedError

@@ -9,9 +9,9 @@ https://github.com/bitcraft/pytmx
 
 import os.path
 import pytmx
+import pytmx.util_pygame
 import pygame
 import pyscroll
-import pyscroll.data
 from pyscroll.group import ScrollGroup
 from pyscroll.tiled import TiledMapData
 from pygame.locals import *
@@ -109,7 +109,7 @@ class QuestGame(object):
         self.running = False
 
         # load data from pytmx
-        tmx_data = pytmx.load_pygame(self.filename)
+        tmx_data = pytmx.util_pygame.load_pygame(self.filename)
 
         # setup level geometry with simple pygame rects, loaded from pytmx
         self.walls = list()

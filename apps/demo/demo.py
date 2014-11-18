@@ -8,9 +8,10 @@ Use the arrow keys to smoothly scroll the map.
 Window is resizable.
 """
 import pytmx
+import pytmx.util_pygame
 import pygame
 import pyscroll
-import pyscroll.data
+from pyscroll.tiled import TiledMapData
 import collections
 import logging
 from pygame.locals import *
@@ -43,16 +44,14 @@ class ScrollTest:
     def __init__(self, filename):
 
         # load data from pytmx
-        tmx_data = pytmx.load_pygame(filename)
+        tmx_data = pytmx.util_pygame.load_pygame(filename)
 
         # create new data source
-        map_data = pyscroll.data.TiledMapData(tmx_data)
+        map_data = TiledMapData(tmx_data)
 
         # create new renderer
-        #self.map_layer = pyscroll.ThreadedRenderer(map_data, screen.get_size())
-        #self.map_layer = pyscroll.BufferedRenderer(map_data, screen.get_size())
-        self.map_layer = pyscroll.BufferedRenderer(map_data, (500, 500),
-                                                   padding=0)
+        self.map_layer = pyscroll.OrthogonalRenderer(map_data,
+                                                     screen.get_size())
 
         # create a font and pre-render some text to be displayed over the map
         f = pygame.font.Font(pygame.font.get_default_font(), 20)
@@ -63,10 +62,8 @@ class ScrollTest:
         self.text_overlay = [f.render(i, 1, (180, 180, 0)) for i in t]
 
         # set our initial viewpoint in the center of the map
-        self.center = [self.map_layer.rect.width / 2,
-                       self.map_layer.rect.height / 2]
-
-        self.center = [0, 0]
+        self.center = [self.map_layer.map_rect.width / 2,
+                       self.map_layer.map_rect.height / 2]
 
         # the camera vector is used to handle camera movement
         self.camera_acc = [0, 0, 0]
@@ -109,7 +106,7 @@ class ScrollTest:
             # this will be handled if the window is resized
             elif event.type == VIDEORESIZE:
                 init_screen(event.w, event.h)
-                #self.map_layer.set_size((event.w, event.h))
+                self.map_layer.size = (event.w, event.h)
 
 
         # these keys will change the camera vector
@@ -134,10 +131,6 @@ class ScrollTest:
             self.camera_acc[0] = 0
 
     def update(self, td):
-
-        # map can be updated to lazily blit the off-screen tiles to the buffer
-        self.map_layer.update()
-
         self.last_update_time = td
 
         friction = pow(.0001, self.last_update_time)
@@ -154,7 +147,7 @@ class ScrollTest:
             self.center[0] -= self.camera_vel[0]
             self.camera_acc[0] = 0
             self.camera_vel[0] = 0
-        if self.center[0] >= self.map_layer.rect.width:
+        if self.center[0] >= self.map_layer.map_rect.width:
             self.center[0] -= self.camera_vel[0]
             self.camera_acc[0] = 0
             self.camera_vel[0] = 0
@@ -163,7 +156,7 @@ class ScrollTest:
             self.center[1] -= self.camera_vel[1]
             self.camera_acc[1] = 0
             self.camera_vel[1] = 0
-        if self.center[1] >= self.map_layer.rect.height:
+        if self.center[1] >= self.map_layer.map_rect.height:
             self.center[1] -= self.camera_vel[1]
             self.camera_acc[1] = 0
             self.camera_vel[1] = 0

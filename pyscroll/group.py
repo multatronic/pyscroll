@@ -4,7 +4,7 @@ __all__ = ['ScrollGroup']
 
 
 class ScrollGroup(pygame.sprite.LayeredUpdates):
-    """ Layered Group with ability to center sprites and scrolling map
+    """ Layered Group with ability to center sprites on a scrolling map
     """
 
     def __init__(self, *args, **kwargs):

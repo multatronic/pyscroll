@@ -12,11 +12,11 @@ class TiledMapData(object):
         return self.data.orientation
 
     @property
-    def tilewidth(self):
+    def tile_width(self):
         return self.data.tilewidth
 
     @property
-    def tileheight(self):
+    def tile_height(self):
         return self.data.tileheight
 
     @property
