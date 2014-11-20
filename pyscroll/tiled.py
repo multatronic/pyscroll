@@ -4,6 +4,8 @@ __all__ = ['TiledMapData']
 
 
 class TiledMapData(object):
+    """ Class that works with pytmx instances for getting scrolling map data
+    """
     def __init__(self, data):
         self.data = data
 
@@ -42,14 +44,11 @@ class TiledMapData(object):
 
     def get_tile_image(self, position):
         """ Return a surface for this position.
-
-        Returns a blank tile if cannot be loaded.
-        position is x, y, layer tuple
         """
         x, y, l = position
         return self.data.get_tile_image(x, y, l)
 
     def get_tile_image_by_gid(self, gid):
-        """ Return surface for a gid (experimental)
+        """ Return surface for a gid
         """
         return self.data.get_tile_image_by_gid(gid)

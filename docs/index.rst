@@ -3,78 +3,39 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-pyscroll
-========
+Welcome to pyscroll's Documentation!
+====================================
 
-for Python 2.7 & 3.3 and Pygame 1.9
+pyscroll is a  simple, fast module for adding scrolling maps to your new or
+existing pygame application.  pyscroll doesn't require any external map format
+so you can use your existing map data, or take advantage of the built-in support
+for pytmx to load maps created in the Tiled Map Editor.
 
-A simple, fast module for adding scrolling maps to your new or existing game.
+Basically, pyscroll can create a pygame surface that represents your game map.
+The OrthographicalRenderer class accepts map data and can draw directly to the
+pygame display, or to another surface.
 
-
-Introduction
-============
-
-pyscroll is a generic module for making a fast scrolling image with PyGame.  It
-uses a lot of magic to get reasonable framerates out of PyGame.  It only exists
-to draw a map.  It doesn't load images or data, so you can use your own custom
-data structures, tile storage, ect.
-
-The included class, BufferedRenderer, gives great framerates, supports layered
-rendering and can draw itself.  It uses more memory than a typical map would,
-but gives much better performance.
-
-pyscroll is compatible with pytmx (https://github.com/bitcraft/pytmx), so you
-can use your Tiled maps.  It also has out-of-the-box support for PyGame Sprites.
-
-
-Features
-========
-
-- Fast and small footprint
-- Layered drawing for tiles
-- Drawing and scrolling shapes
-- Dirty screen updates
-- Pygame Group included
-
-
-Shape Drawing
-=============
-
-pyscroll has a new experimental feature for drawing shapes to the map and
-scrolling them as part of the map.  This can be useful for game that need to
-draw arbitrary shaped objects.
-
-The feature requires pytmx, and that the map files be created in the Tiled Map
-Editor.  The advantage of of using pyscroll for shape drawing is that pyscroll
-can draw the shapes much more efficiently that simply drawing the shapes each
-frame.
-
-This feature is experimental at best.  Your comments and support is appreciated!
-
-* Currently, shapes will not draw over sprites.
+To handle scrolling, you can use the center or scroll methods to move the map.
+If you are using pygame Sprites (are are using them, aren't you?), you can also
+use the ScrollGroup, which supports layered sprites and maps plus scrolling.
 
 
 New Game Tutorial
 =================
 
-This is a quick guide on building a new game with pyscroll and pygame.  It uses
-the PyscrollGroup for efficient rendering.  You are free to use any other pygame
-techniques and functions.
+Open quest.py in the apps/tutorial folder for a gentle introduction to pyscroll
+and the PyscrollGroup for PyGame.  There are plenty of comments to get you
+started.  You should have a basic understanding of python and pygame before you
+get started with the tutorial.
 
-Open quest.py in the tutorial folder for a gentle introduction to pyscroll and
-the PyscrollGroup for PyGame.  There are plenty of comments to get you started.
-
-The Quest demo shows how you can use a pyscroll group for drawing, how to load
-maps with PyTMX, and how pyscroll can quickly render layers.  Moving under some
-tiles will cause the Hero to be covered.
-
-It will also render a Shape on the map with experimental shape drawing.
+The Quest Demo shows how you can use a pyscroll group for drawing, how to load
+maps with pytmx, and how pyscroll can quickly render layers.
 
 
-Example Use with PyTMX
+Example Use with pytmx
 ======================
 
-pyscroll and pytmx can load your maps from Tiled and use you PyGame Sprites.
+pyscroll and pytmx can load your maps from Tiled and use pygame sprites.
 
 .. code-block:: python
 
@@ -106,7 +67,7 @@ Adapting Existing Games / Map Data
 
 pyscroll can be used with existing map data, but you will have to create a
 class to interact with pyscroll or adapt your data handler to have these
-functions / attributes:
+functions and attributes:
 
 
 .. code-block:: python
@@ -114,35 +75,41 @@ functions / attributes:
     class MyData:
 
         @property
-        def tilewidth(self):
-            """ Return pixel width of map tiles
+        def tile_width(self):
+            """ Return width of a tile in pixels
             """
 
         @property
-        def tileheight(self):
-            """ Return pixel height of map tiles
+        def tile_height(self):
+            """ Return height of a tile in pixels
             """
 
         @property
         def width(self):
-            """ Return number of tiles on X axis
+            """ Return the width of the map in tiles
             """
 
         @property
         def height(self):
-            """ Return number of tiles on Y axis
+            """ Return the height of the map in tiles
             """
 
         @property
-        def visible_layers(self):
-            """ Return a list or iterator of layer numbers that are visible.
+        def visible_tile_layers(self):
+            """ Return list of visible layer index numbers
             If using a single layer map, just return [0]
+
+            :return: list of visible layers
+            :rtype: sequence
             """
 
         def get_tile_image(self, position):
-            """ Return a surface for this position.
-            Return self.default_image if there is not map data for the position.
-            position is x, y, layer tuple
+            """ Return the tile image for some position on the map
+
+            :param position: position of tile in the map
+            :type position: (x, y, layer)
+            :return: tile image
+            :rtype: pygame.surface.Surface
             """
 
 .. toctree::

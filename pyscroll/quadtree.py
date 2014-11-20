@@ -4,64 +4,56 @@ Two classes for quadtree collision detection.
 A quadtree is used with pyscroll to detect overlapping tiles.
 """
 
-import itertools
+from itertools import chain
 from pygame import Rect
 
 __all__ = ['FastQuadTree']
 
 
 class FastQuadTree(object):
-    """An implementation of a quad-tree.
+    """ An implementation of a quad-tree
 
     This faster version of the quadtree class is tuned for pygame's rect
     objects, or objects with a rect attribute.  The return value will always
-    be a set of a tupes that represent the items passed.  In other words,
+    be a set of a tuples that represent the items passed.  In other words,
     you will not get back the objects that were passed, just a tuple that
     describes it.
 
     Items being stored in the tree must be a pygame.Rect or have have a
     .rect (pygame.Rect) attribute that is a pygame.Rect
-
-    original code from http://pygame.org/wiki/QuadTree
     """
-
-    __slots__ = ['items', 'cx', 'cy', 'nw', 'sw', 'ne', 'se']
+    __slots__ = ['_items', '_cx', '_cy', '_nw', '_sw', '_ne', '_se']
 
     def __init__(self, items, depth=4, boundary=None):
-        """Creates a quad-tree.
+        """ Creates a quad-tree
 
-        @param items:
-            A sequence of items to store in the quad-tree. Note that these
-            items must be a pygame.Rect or have a .rect attribute.
+        :param items: A sequence of items to store in the quad-tree
+            Note: items must be a pygame.Rect or have a .rect attribute
 
-        @param depth:
-            The maximum recursion depth.
+        :param depth: The maximum recursion depth
 
-        @param boundary:
-            The bounding rectangle of all of the items in the quad-tree.
+        :param boundary:
+            The bounding rectangle of all of the items in the quad-tree
         """
+        self._nw = self._ne = self._se = self._sw = None
 
-        # The sub-quadrants are empty to start with.
-        self.nw = self.ne = self.se = self.sw = None
-
-        # If we've reached the maximum depth then insert all items into this
-        # quadrant.
+        # If we've reached maximum depth insert all items into this quadrant
         depth -= 1
         if depth == 0 or not items:
-            self.items = items
+            self._items = items
             return
 
-        # Find this quadrant's centre.
+        # Find this quadrant's center
         if boundary:
             boundary = Rect(boundary)
         else:
-            # If there isn't a bounding rect, then calculate it from the items.
+            # If there isn't a bounding rect, then calculate it from the items
             boundary = Rect(items[0]).unionall(items[1:])
 
-        cx = self.cx = boundary.centerx
-        cy = self.cy = boundary.centery
+        cx = self._cx = boundary.centerx
+        cy = self._cy = boundary.centery
 
-        self.items = []
+        self._items = []
         nw_items = []
         ne_items = []
         se_items = []
@@ -78,7 +70,7 @@ class FastQuadTree(object):
             # depth, otherwise append it to a list to be inserted under every
             # quadrant that it overlaps.
             if in_nw and in_ne and in_se and in_sw:
-                self.items.append(item)
+                self._items.append(item)
             else:
                 if in_nw: nw_items.append(item)
                 if in_ne: ne_items.append(item)
@@ -87,47 +79,46 @@ class FastQuadTree(object):
 
         # Create the sub-quadrants, recursively.
         if nw_items:
-            self.nw = FastQuadTree(nw_items, depth,
+            self._nw = FastQuadTree(nw_items, depth,
                                    (boundary.left, boundary.top, cx, cy))
 
         if ne_items:
-            self.ne = FastQuadTree(ne_items, depth,
+            self._ne = FastQuadTree(ne_items, depth,
                                    (cx, boundary.top, boundary.right, cy))
 
         if se_items:
-            self.se = FastQuadTree(se_items, depth,
+            self._se = FastQuadTree(se_items, depth,
                                    (cx, cy, boundary.right, boundary.bottom))
 
         if sw_items:
-            self.sw = FastQuadTree(sw_items, depth,
+            self._sw = FastQuadTree(sw_items, depth,
                                    (boundary.left, cy, cx, boundary.bottom))
 
     def __iter__(self):
-        return itertools.chain(self.items, self.nw, self.ne, self.se, self.sw)
+        return chain(self._items, self._nw, self._ne, self._se, self._sw)
 
     def hit(self, rect):
-        """Returns the items that overlap a bounding rectangle.
+        """ Returns the items that overlap a bounding rectangle.
 
         Returns the set of all items in the quad-tree that overlap with a
         bounding rectangle.
 
-        @param rect:
-            The bounding rectangle being tested against the quad-tree. This
-            must possess left, top, right and bottom attributes.
+        :param rect: The bounding rect being tested against the quad-tree
+            This must possess left, top, right and bottom attributes
         """
 
-        # Find the hits at the current level.
+        # Find the hits at the current level
         hits = set(
-            tuple(self.items[i]) for i in rect.collidelistall(self.items))
+            tuple(self._items[i]) for i in rect.collidelistall(self._items))
 
-        # Recursively check the lower quadrants.
-        if self.nw and rect.left <= self.cx and rect.top <= self.cy:
-            hits |= self.nw.hit(rect)
-        if self.sw and rect.left <= self.cx and rect.bottom >= self.cy:
-            hits |= self.sw.hit(rect)
-        if self.ne and rect.right >= self.cx and rect.top <= self.cy:
-            hits |= self.ne.hit(rect)
-        if self.se and rect.right >= self.cx and rect.bottom >= self.cy:
-            hits |= self.se.hit(rect)
+        # Recursively check the lower quadrants
+        if self._nw and rect.left <= self._cx and rect.top <= self._cy:
+            hits |= self._nw.hit(rect)
+        if self._sw and rect.left <= self._cx and rect.bottom >= self._cy:
+            hits |= self._sw.hit(rect)
+        if self._ne and rect.right >= self._cx and rect.top <= self._cy:
+            hits |= self._ne.hit(rect)
+        if self._se and rect.right >= self._cx and rect.bottom >= self._cy:
+            hits |= self._se.hit(rect)
 
         return hits

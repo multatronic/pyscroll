@@ -4,26 +4,42 @@ pyscroll package
 Submodules
 ----------
 
-pyscroll.pyscroll
------------------
+pyscroll.data module
+--------------------
 
-.. automodule:: pyscroll.pyscroll
+.. automodule:: pyscroll.data
     :members:
     :undoc-members:
     :show-inheritance:
 
-pyscroll.data
--------------
+pyscroll.group module
+---------------------
 
-.. automodule:: pyscroll.data
-    :members: TiledMapData
+.. automodule:: pyscroll.group
+    :members:
     :undoc-members:
     :show-inheritance:
 
-pyscroll.util
--------------
+pyscroll.quadtree module
+------------------------
 
-.. automodule:: pyscroll.util
+.. automodule:: pyscroll.quadtree
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyscroll.renderer module
+------------------------
+
+.. automodule:: pyscroll.renderer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyscroll.tiled module
+---------------------
+
+.. automodule:: pyscroll.tiled
     :members:
     :undoc-members:
     :show-inheritance:

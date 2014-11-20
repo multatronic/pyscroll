@@ -1,7 +1,7 @@
 import math
 import threading
 from functools import partial
-from itertools import islice, product, chain
+from itertools import product, chain
 
 import pygame
 from pygame.compat import xrange_
@@ -9,7 +9,7 @@ from pygame.compat import xrange_
 from . import quadtree
 
 
-__all__ = ['OrthogonalRenderer']
+__all__ = ['AbstractRenderer', 'OrthogonalRenderer']
 
 
 class AbstractRenderer(object):
@@ -19,8 +19,7 @@ class AbstractRenderer(object):
     the screen at once, rather than a collection of tiles.
     """
 
-    def __init__(self, data, size, colorkey=None, padding=4,
-                 clamp_camera=False):
+    def __init__(self, data, colorkey=None, padding=4, clamp_camera=True):
 
         # default public values
         self.padding = padding
@@ -56,6 +55,9 @@ class AbstractRenderer(object):
 
     @property
     def data(self):
+        """ Get or set data used to render the map.  The data must conform to
+        the AbstractMapData class defined in pyscroll.data.
+        """
         return self._data
 
     @data.setter
@@ -65,12 +67,12 @@ class AbstractRenderer(object):
 
     @property
     def size(self):
+        """ Get or set the size of the rendered map in pixels.
+        """
         return self._size
 
     @size.setter
     def size(self, size):
-        """ Set the size of the map in pixels and init the buffer
-        """
         data = self.data
         tw = data.tile_width
         th = data.tile_height
@@ -110,6 +112,8 @@ class AbstractRenderer(object):
 
     @property
     def colorkey(self):
+        """ Get or set the colorkey of the map tiles.
+        """
         return self._colorkey
 
     @colorkey.setter
@@ -124,20 +128,30 @@ class AbstractRenderer(object):
 
     @property
     def sprite_offset(self):
+        """ This value is used to determine the offset from a sprites 'world'
+        position and their position on the screen.
+
+        :return: offset of sprites
+        :rtype: (x, y)
+        """
         raise NotImplementedError
 
     def draw(self, surface, area=None, surfaces=None):
-        """ Draw the map onto a surface
+        """ Draw the map onto a surface.
 
-        pass a rect that defines the draw area for:
-            dirty screen update support
-            drawing to an area smaller that the whole window/screen
+        Surfaces may optionally be passed that will be coalesced during draw.
+        These surfaces will be drawn correctly to show layer depth.  The
+        sequence must be a list of tuples containing a layer number, image, and
+        rect in screen coordinates.  Surfaces will be drawn in order passed and
+        will be correctly drawn with tiles from a higher layer overlapping the
+        surface.
 
-        surfaces may optionally be passed that will be blitted onto the surface.
-        this must be a list of tuples containing a layer number, image, and
-        rect in screen coordinates.  surfaces will be drawn in order passed,
-        and will be correctly drawn with tiles from a higher layer overlapping
-        the surface.
+        :param surface: Where map will be drawn to
+        :type surface: pygame.surface.Surface
+        :param area: (Optional) Define area to be drawn on the surface
+        :type area: pygame.rect.Rect
+        :param surfaces: (layer, surface, rect) list to be coalesced during draw
+        :type surfaces: sequence
         """
 
         if self._blank:
@@ -150,7 +164,7 @@ class AbstractRenderer(object):
                 self._centered_point = None
 
         if self.queue and self.flush_on_draw:
-            self.flush()
+            self._flush()
 
         original_clip = None
         if area is not None:
@@ -177,53 +191,52 @@ class AbstractRenderer(object):
         return dirty
 
     def redraw(self):
-        """ redraw the visible portion of the buffer -- it is slow and blocks.
+        """ Redraw the visible portion of the buffer.
+
+        Beware, this is a slow operation and under normal circumstances should
+        not need to be used.  If the map data has changed and specific tiles
+        need to be redrawn, consider using update_queue and queue_tile.
         """
         self.queue = self._get_filled_queue()
-        self.flush()
+        self._flush()
 
     def update_queue(self, iterator):
-        """ Add some tiles to the queue
+        """ Add some tiles to the draw queue.
         """
         if self.queue is None:
             self.queue = iterator
         else:
             self.queue = chain(self.queue, iterator)
 
-    def update_tile(self, position):
-        """ mark a tile for update on the next draw.  useful if you change the
-            tilemap data.  for multiple updates, consider using update_queue()
+    def queue_tile(self, position):
+        """ Mark a tile position for update on the next draw.  Useful if you
+        change the tile map data and need the tile to be updated on screen. For
+        multiple updates, consider using update_queue().
+
+        :param position: Position of tile that needs redraw
+        :type position: (x, y, layer)
         """
         self.update_queue(iter(position,))
 
-    def update(self, dt=None):
-        """ Draw tiles in the background
-
-        the drawing operations and management of the buffer is handled here.
-        if you are updating more than drawing, then updating here will draw
-        off screen tiles.  this will limit expensive tile blits during screen
-        draws.  if your draw and update happens every game loop, then you will
-        not benefit from updates, but it won't hurt either.
-        """
-        if self.queue is not None:
-            self._blit_tiles(islice(self.queue, self.update_rate))
-
-    def flush(self):
-        """ Blit the tiles and block until the tile queue is empty
-        """
-        if self.queue is not None:
-            self._blit_tiles(self.queue)
-            self.queue = None
-
     def center(self, point):
-        """ center the map on a point
+        """ Center the map on a point.  If clamp_camera is enabled (it is by
+        default) then the camera will not center exactly on the point it will
+        cause the basemap to expose blank areas.
+
+        :param point: Desired center position in pixels
+        :type point: (x, y)
         """
         self._centered_point = point
 
     def scroll(self, vector):
-        """ scroll the background in pixels
-        """
         raise NotImplementedError
+
+    def _flush(self):
+        """ Draw all tiles in the queue.
+        """
+        if self.queue is not None:
+            self._blit_tiles(self.queue)
+            self.queue = None
 
     def _get_tile_image(self, position):
         try:
@@ -244,13 +257,9 @@ class AbstractRenderer(object):
         raise NotImplementedError
 
     def _get_filled_queue(self):
-        """ get iterator of all tiles in the current view
-        """
         raise NotImplementedError
 
     def _get_edge_tiles(self, offset):
-        """ Get the tile coordinates that need to be redrawn
-        """
         raise NotImplementedError
 
 
@@ -378,7 +387,10 @@ class OrthogonalRenderer(AbstractRenderer):
         self._previous_x, self._previous_y = x, y
 
     def scroll(self, vector):
-        """ scroll the background in pixels
+        """ Scroll the background in pixels.
+
+        :param vector: Displacement of the camera in pixels
+        :type vector: (x, y)
         """
         self.center((vector[0] + self._previous_x, vector[1] + self._previous_y))
 
