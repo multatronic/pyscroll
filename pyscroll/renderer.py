@@ -1,12 +1,9 @@
-import threading
 from math import ceil
 from functools import partial
 from itertools import product, chain
 
 import pygame
 from pygame.compat import xrange_
-
-from . import quadtree
 
 
 __all__ = ['AbstractRenderer', 'OrthogonalRenderer']
@@ -24,14 +21,11 @@ class AbstractRenderer(object):
         # default public values
         self.padding = padding
         self.clamp_camera = clamp_camera
-        self.flush_on_draw = True
-        self.update_rate = 10
         self.map_rect = None
         self.default_tile = None
         self.background_color = (0, 0, 0)
 
         # internal names
-        self._lock = threading.Lock()
         self._idle = False
         self._blank = False
         self._view = None
@@ -44,13 +38,13 @@ class AbstractRenderer(object):
         self._buffer = None
         self._size = None
         self._data = None
-        self._layer_quadtree = None
+        self._queue = None
+        self._view_rects = None
         self._centered_point = None
 
         # set the instance up
         self._colorkey = colorkey
         self.data = data
-        self.queue = None
 
     @property
     def data(self):
@@ -62,6 +56,7 @@ class AbstractRenderer(object):
     @data.setter
     def data(self, data):
         self._data = data
+        self._queue = None
         self._generate_default_tile()
 
         # this is the pixel size of the entire map
@@ -77,21 +72,16 @@ class AbstractRenderer(object):
 
     @size.setter
     def size(self, size):
-        tw = self._data.tile_width
-        th = self._data.tile_height
-
-        buffer_width = size[0] + tw * self.padding
-        buffer_height = size[1] + th * self.padding
-        self._buffer = pygame.Surface((buffer_width, buffer_height))
-        self._view = pygame.Rect(0, 0, ceil(buffer_width / tw),
-                                 ceil(buffer_height / th))
-
         self._half_width, self._half_height = [i / 2 for i in size]
 
-        rects = [pygame.Rect((x * tw, y * th), (tw, th))
-                 for x, y in product(*map(xrange_, self._view.size))]
-
-        self._layer_quadtree = quadtree.FastQuadTree(rects, 4)
+        tw = self._data.tile_width
+        th = self._data.tile_height
+        buf_w = size[0] + tw * self.padding
+        buf_h = size[1] + th * self.padding
+        self._buffer = pygame.Surface((buf_w, buf_h))
+        self._view = pygame.Rect(0, 0, ceil(buf_w / tw), ceil(buf_h / th))
+        self._view_rects = [pygame.Rect((x * tw, y * th), (tw, th))
+                            for x, y in product(*map(xrange_, self._view.size))]
 
         if self._colorkey is not None:
             self.colorkey = self._colorkey
@@ -162,8 +152,8 @@ class AbstractRenderer(object):
                 self._center_map(self._centered_point)
                 self._centered_point = None
 
-        if self.queue and self.flush_on_draw:
-            self._flush()
+            if self._queue:
+                self._flush()
 
         original_clip = None
         if area is not None:
@@ -196,16 +186,16 @@ class AbstractRenderer(object):
         not need to be used.  If the map data has changed and specific tiles
         need to be redrawn, consider using update_queue and queue_tile.
         """
-        self.queue = self._get_filled_queue()
+        self._queue = self._get_filled_queue()
         self._flush()
 
     def update_queue(self, iterator):
         """ Add some tiles to the draw queue.
         """
-        if self.queue is None:
-            self.queue = iterator
+        if self._queue is None:
+            self._queue = iterator
         else:
-            self.queue = chain(self.queue, iterator)
+            self._queue = chain(self._queue, iterator)
 
     def queue_tile(self, position):
         """ Mark a tile position for update on the next draw.  Useful if you
@@ -233,9 +223,9 @@ class AbstractRenderer(object):
     def _flush(self):
         """ Draw all tiles in the queue.
         """
-        if self.queue is not None:
-            self._blit_tiles(self.queue)
-            self.queue = None
+        if self._queue is not None:
+            self._blit_tiles(self._queue)
+            self._queue = None
 
     def _get_tile_image(self, position):
         try:
@@ -326,14 +316,14 @@ class OrthogonalRenderer(AbstractRenderer):
         ox, oy = offset
         surface_blit = surface.blit
         left, top = self._view.topleft
-        hit = self._layer_quadtree.hit
         get_tile = self._get_tile_image
+        view_rects = self._view_rects
         tile_layers = tuple(self._data.visible_tile_layers)
 
         dirty = [(surface_blit(i[0], i[1]), i[2]) for i in surfaces]
         for dirty_rect, layer in dirty:
-            for r in hit(dirty_rect.move(-ox, -oy)):
-                x, y, tw, th = r
+            for i in dirty_rect.move(-ox, -oy).collidelistall(view_rects):
+                x, y, tw, th = view_rects[i]
                 for l in [i for i in tile_layers if above(i, layer)]:
                     tile = get_tile((int(x / tw + left),
                                      int(y / th + top), int(l)))
@@ -379,7 +369,7 @@ class OrthogonalRenderer(AbstractRenderer):
         self._offset_y += hpad * th
 
         # adjust the view if the buffer is scrolled too far
-        if (abs(dx) >= 1) or (abs(dy) >= 1):
+        if (abs(dx) > 0) or (abs(dy) > 0):
             self._view = self._view.move((dx, dy))
             self._buffer.scroll(-dx * tw, -dy * th)
             self.update_queue(self._get_edge_tiles((dx, dy)))

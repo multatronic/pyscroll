@@ -276,14 +276,14 @@ class QuestGame(object):
     def run(self):
         """ Run the game loop
         """
-        fps = 60
+        fps = 40
         clock = pygame.time.Clock()
         scale = pygame.transform.scale
         self.running = True
 
         try:
             while self.running:
-                dt = clock.tick(fps) / 1000.
+                dt = clock.tick_busy_loop(60) / 1000.
                 self.handle_input()
                 self.update(dt)
 
@@ -295,7 +295,7 @@ class QuestGame(object):
                 """
                 self.draw(temp_surface)
                 scale(temp_surface, screen.get_size(), screen)
-                pygame.display.flip()
+                pygame.display.update()
 
         except KeyboardInterrupt:
             self.running = False
