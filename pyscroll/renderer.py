@@ -1,5 +1,5 @@
-import math
 import threading
+from math import ceil
 from functools import partial
 from itertools import product, chain
 
@@ -50,7 +50,6 @@ class AbstractRenderer(object):
         # set the instance up
         self._colorkey = colorkey
         self.data = data
-        self.size = size
         self.queue = None
 
     @property
@@ -61,43 +60,38 @@ class AbstractRenderer(object):
         return self._data
 
     @data.setter
-    def data(self, value):
-        self._data = value
+    def data(self, data):
+        self._data = data
         self._generate_default_tile()
+
+        # this is the pixel size of the entire map
+        self.map_rect = pygame.Rect(0, 0,
+                                    data.width * data.tile_width,
+                                    data.height * data.tile_height)
 
     @property
     def size(self):
-        """ Get or set the size of the rendered map in pixels.
+        """ Get or set the size of the rendered map view in pixels.
         """
         return self._size
 
     @size.setter
     def size(self, size):
-        data = self.data
-        tw = data.tile_width
-        th = data.tile_height
-
-        # this is the pixel size of the entire map
-        self.map_rect = pygame.Rect(0, 0, data.width * tw, data.height * th)
+        tw = self._data.tile_width
+        th = self._data.tile_height
 
         buffer_width = size[0] + tw * self.padding
         buffer_height = size[1] + th * self.padding
         self._buffer = pygame.Surface((buffer_width, buffer_height))
-        self._view = pygame.Rect(0, 0, math.ceil(buffer_width / tw),
-                                 math.ceil(buffer_height / th))
+        self._view = pygame.Rect(0, 0, ceil(buffer_width / tw),
+                                 ceil(buffer_height / th))
 
-        self._half_width = size[0] / 2
-        self._half_height = size[1] / 2
+        self._half_width, self._half_height = [i / 2 for i in size]
 
-        # quadtree is used to correctly draw tiles that cover 'sprites'
-        mk_rect = lambda x, y: pygame.Rect((x * tw, y * th), (tw, th))
+        rects = [pygame.Rect((x * tw, y * th), (tw, th))
+                 for x, y in product(*map(xrange_, self._view.size))]
 
-        rects = [mk_rect(x, y)
-                 for x, y in product(xrange_(self._view.width),
-                                     xrange_(self._view.height))]
-
-        # TODO: figure out what depth -actually- does (benchmark it?)
-        self._layer_quadtree = quadtree.FastQuadTree(rects, 2)
+        self._layer_quadtree = quadtree.FastQuadTree(rects, 4)
 
         if self._colorkey is not None:
             self.colorkey = self._colorkey
@@ -155,6 +149,11 @@ class AbstractRenderer(object):
         """
 
         if self._blank:
+            if self.size is None:
+                if area is None:
+                    self.size = surface.get_rect().size
+                else:
+                    self.size = pygame.Rect(area).size
             self.redraw()
             self._blank = False
 
@@ -268,8 +267,11 @@ class OrthogonalRenderer(AbstractRenderer):
     """
     @property
     def sprite_offset(self):
-        return (-self._centered_point[0] + self._half_width,
-                -self._centered_point[1] + self._half_height)
+        try:
+            return (-self._centered_point[0] + self._half_width,
+                    -self._centered_point[1] + self._half_height)
+        except TypeError:
+            raise Exception, "sprite offset cannot be calculated until the renderer size is set or until after the first call to draw"
 
     def _get_filled_queue(self):
         return product(xrange_(self._view.left, self._view.right),
@@ -379,8 +381,6 @@ class OrthogonalRenderer(AbstractRenderer):
         # adjust the view if the buffer is scrolled too far
         if (abs(dx) >= 1) or (abs(dy) >= 1):
             self._view = self._view.move((dx, dy))
-
-            # scroll the image (much faster than redrawing the tiles!)
             self._buffer.scroll(-dx * tw, -dy * th)
             self.update_queue(self._get_edge_tiles((dx, dy)))
 
@@ -392,7 +392,7 @@ class OrthogonalRenderer(AbstractRenderer):
         :param vector: Displacement of the camera in pixels
         :type vector: (x, y)
         """
-        self.center((vector[0] + self._previous_x, vector[1] + self._previous_y))
+        self.center((vector[0]+self._previous_x, vector[1]+self._previous_y))
 
     def _blit_tiles(self, iterator):
         """ Blits (x, y, layer) tuples to buffer from iterator
@@ -408,17 +408,18 @@ class OrthogonalRenderer(AbstractRenderer):
         if colorkey:
             fill = partial(self._buffer.fill, colorkey)
             old_tiles = set()
+            old_tiles_add = old_tiles.add
             for x, y, l in iterator:
                 tile = get_tile((x, y, l))
                 if tile:
+                    old_tiles_add((x, y))
+                    xx = x * tw - ltw
+                    yy = y * th - tth
                     if l == 0:
-                        fill((x * tw - ltw, y * th - tth, tw, th))
-                    old_tiles.add((x, y))
-                    blit(tile, (x * tw - ltw, y * th - tth))
-                else:
-                    if l > 0:
-                        if (x, y) not in old_tiles:
-                            fill((x * tw - ltw, y * th - tth, tw, th))
+                        fill((xx, yy, tw, th))
+                    blit(tile, (xx, yy))
+                elif l > 0 and (x, y) not in old_tiles:
+                    fill((x * tw - ltw, y * th - tth, tw, th))
         else:
             for x, y, l in iterator:
                 tile = get_tile((x, y, l))

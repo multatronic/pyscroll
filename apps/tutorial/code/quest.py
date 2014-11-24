@@ -55,27 +55,7 @@ class Hero(pygame.sprite.Sprite):
 
     Feet is 1/2 as wide as the normal rect, and 8 pixels tall.  This size size
     allows the top of the sprite to overlap walls.
-
-    The game hero has a somewhat complicated way to move, compared to the way
-    most pygame tutorials tell you.  It is actually more close to modern games
-    with physics engines, so don't feel scared now~
-
-    The benefits are that you can be assured that the movement will be the same
-    on fast or slow computers, even with a low framerate and it prevents
-    ingeter truncation from giving you odd speed.  Integer truncation happens
-    with pygame rects.
-
-    Essentially:
-       - each game loop input check
-       1) determine if the arrow keys are pressed
-       2) instead of moving the rect or position directly, set the velocity
-
-       - each game loop update, check the hero's velocity
-       3) multiply the velocity by the amount of time that has passed
-       4) set the position of the hero to the value found in #1
-       5) rejoice in smooth framerate independent movement
     """
-
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.image = load_image('hero.png').convert_alpha()
@@ -94,9 +74,29 @@ class Hero(pygame.sprite.Sprite):
         self._position = list(value)
 
     def update(self, dt):
+        """ Update our sprite
+
+        Here we update the position based on how much time has passed
         """
-        1) Save the current position to _old_position
-        2) Multiply the current
+        """
+        The game hero has a somewhat complicated way to move, compared to the
+        way most pygame tutorials tell you.  It is actually more close to modern
+        games with physics engines, so don't feel scared now~
+
+        The benefits are that you can be assured that the movement will be the
+        same on fast or slow computers, even with a low framerate and it
+        prevents ingeter truncation from giving you odd speed.  Integer
+        truncation happens with pygame rects.
+
+        Essentially:
+           - each game loop input check
+           1) determine if the arrow keys are pressed
+           2) instead of moving the rect or position directly, set the velocity
+
+           - each game loop update, check the hero's velocity
+           3) multiply the velocity by the amount of time that has passed
+           4) set the position of the hero to the value found in #1
+           5) rejoice in smooth framerate independent movement
         """
         self._old_position = self._position[:]
         self._position[0] += self.velocity[0] * dt
@@ -122,8 +122,6 @@ class QuestGame(object):
     filename = get_map(MAP_FILENAME)
 
     def __init__(self):
-
-        # true while running
         self.running = False
 
         """
@@ -136,6 +134,10 @@ class QuestGame(object):
         pytmx.util_pygame.load_pygame() will load a map and all the images for
         the tiles.  If you make your own data class, you will need to make sure
         that you have all the surfaces loaded.
+
+        Our renderer is the core of pyscroll and does all the complicated work
+        blitting tiles and creating the scrolling effect.  We won't be using it
+        directly, but we will use it later to make a pyscroll ScrollGroup.
         """
         tmx_data = load_pygame(self.filename)
         map_data = TiledMapData(tmx_data)
@@ -168,6 +170,13 @@ class QuestGame(object):
         sprites to be on top of layer 0 and 1, we set the default layer for
         sprites as 2.  Layers that are the same number or higher than a sprite
         will cover it.
+
+        The ScrollGroup is a drop-in replacement for
+        pygame.sprite.LayeredUpdates.  It lets you use pygame sprites with
+        layered drawing and the ability to pan the camera around the map.
+        It requires a pyscroll renderer ('map_layer') and a default layer to
+        place sprites.  If you don't set the default layer, your sprites might
+        be drawn under the map tiles and won't be visible.
         """
         self.group = ScrollGroup(map_layer=self.map_layer, default_layer=2)
 
@@ -222,8 +231,13 @@ class QuestGame(object):
 
             event = pygame.event.poll()
 
-        # using get_pressed is slightly less accurate than testing for events
-        # but is much easier to use.
+        """
+        below we are going to check the state of the keyboard and do some stuff
+        to get the hero moving around.  Remember, we are not going to move the
+        hero directly, rather we are going to the the velocity directly, then
+        let the game change the position based on the velocity.  This behavior
+        gives the game smooth and framerate independent movement.
+        """
         pressed = pygame.key.get_pressed()
         if pressed[K_UP]:
             self.hero.velocity[1] = -HERO_MOVE_SPEED
@@ -244,9 +258,17 @@ class QuestGame(object):
         """
         self.group.update(dt)
 
-        # check if the sprite's feet are colliding with wall
-        # sprite must have a rect called feet, and move_back method,
-        # otherwise this will fail
+        """
+        Here we are going to do a super simple collision check:
+            1) iterate over all the sprites
+            2) for each sprite, check if the feet collide with the walls
+            3) if colliding, then make the sprite move to its previous position.
+
+        For quick testing, we are using the pygame Rect's built in collidelist
+        method which checks for collisions with a list of retcs.  This works
+        well for our simple game, but with a large number of checks it may not
+        perform well.
+        """
         for sprite in self.group.sprites():
             if sprite.feet.collidelist(self.walls) > -1:
                 sprite.move_back(dt)

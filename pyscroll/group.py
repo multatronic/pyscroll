@@ -10,6 +10,7 @@ class ScrollGroup(pygame.sprite.LayeredUpdates):
     def __init__(self, *args, **kwargs):
         """ map_layer keyword argument is not optional
         """
+        self._size = None
         pygame.sprite.LayeredUpdates.__init__(self, *args, **kwargs)
         try:
             self.map_layer = kwargs.get('map_layer')
@@ -44,6 +45,12 @@ class ScrollGroup(pygame.sprite.LayeredUpdates):
         :type surface: pygame.surface.Surface
         :return: list of screen areas needing updates (dirty rect)
         """
+        # in order to get the offsets, we need to set the renderer size first
+        rect = surface.get_rect()
+        if not self._size == rect.size:
+            self._size = rect.size
+            self.map_layer.size = rect.size
+
         new_surfaces = list()
         xx, yy = self.map_layer.sprite_offset
         spritedict = self.spritedict
