@@ -87,8 +87,8 @@ class RendererBase(object):
                 return pygame.Rect((x * tw, y * th), (tw, th))
 
             rects = [make_rect(x, y)
-                     for x, y in product(range(self.view.width),
-                                         range(self.view.height))]
+                     for x, y in product(list(range(self.view.width)),
+                                         list(range(self.view.height)))]
 
             # TODO: figure out what depth -actually- does
             self.layer_quadtree = quadtree.FastQuadTree(rects, 1)
@@ -171,7 +171,7 @@ class RendererBase(object):
     def get_edge_tiles(self, offset):
         """ Get the tile coordinates that need to be redrawn
         """
-        x, y = map(int, offset)
+        x, y = list(map(int, offset))
         layers = list(self.data.visible_tile_layers)
         view = self.view
         queue = None
@@ -182,18 +182,18 @@ class RendererBase(object):
 
         # right
         if x > 0:
-            queue = product(range(view.right - x - 1, view.right),
-                            range(view.top, view.bottom), layers)
+            queue = product(list(range(view.right - x - 1, view.right)),
+                            list(range(view.top, view.bottom)), layers)
 
         # left
         elif x < 0:
-            queue = product(range(view.left, view.left - x),
-                            range(view.top, view.bottom), layers)
+            queue = product(list(range(view.left, view.left - x)),
+                            list(range(view.top, view.bottom)), layers)
 
         # bottom
         if y > 0:
-            p = product(range(view.left, view.right),
-                        range(view.bottom - y - 1, view.bottom), layers)
+            p = product(list(range(view.left, view.right)),
+                        list(range(view.bottom - y - 1, view.bottom)), layers)
             if queue is None:
                 queue = p
             else:
@@ -201,8 +201,8 @@ class RendererBase(object):
 
         # top
         elif y < 0:
-            p = product(range(view.left, view.right),
-                        range(view.top, view.top - y), layers)
+            p = product(list(range(view.left, view.right)),
+                        list(range(view.top, view.top - y)), layers)
             if queue is None:
                 queue = p
             else:
@@ -304,8 +304,8 @@ class RendererBase(object):
     def redraw(self):
         """ redraw the visible portion of the buffer -- it is slow.
         """
-        queue = product(range(self.view.left, self.view.right),
-                        range(self.view.top, self.view.bottom),
+        queue = product(list(range(self.view.left, self.view.right)),
+                        list(range(self.view.top, self.view.bottom)),
                         self.data.visible_tile_layers)
 
         self.update_queue(queue)
@@ -559,10 +559,10 @@ class BufferedRenderer(RendererBase):
             # get the tile that is under the point in the buffer
             tile = get_tile((tx, ty, 0))
 
-            print x, y, xx, yy, tx, ty
+            print(x, y, xx, yy, tx, ty)
 
-            xxx = xx
-            yyy = yy
+            xxx = int(xx)
+            yyy = int(yy)
 
             if tile:
                 blit(tile, (xxx, yyy))
@@ -615,5 +615,5 @@ class BufferedRenderer(RendererBase):
     def redraw(self):
         """ redraw the visible portion of the buffer -- it is slow.
         """
-        self.queue = product(range(self.view.height * 2), range(self.view.width))
+        self.queue = product(list(range(self.view.height * 2)), list(range(self.view.width)))
         self.flush()
