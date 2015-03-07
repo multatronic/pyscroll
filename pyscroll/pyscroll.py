@@ -559,8 +559,6 @@ class BufferedRenderer(RendererBase):
             # get the tile that is under the point in the buffer
             tile = get_tile((tx, ty, 0))
 
-            print(x, y, xx, yy, tx, ty)
-
             xxx = int(xx)
             yyy = int(yy)
 
